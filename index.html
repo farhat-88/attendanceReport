@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Data</title>
+</head>
+<body>
+    <button id="downloadButton">Download Filtered Data</button>
+    
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.4/xlsx.full.min.js"></script>
+    <script>
+    $(document).ready(function(){
+        $('#downloadButton').on('click', function() {
+            // Define custom headings
+            var headings = ["Employee",	"Employee ID", "Gender", "Day", "Check In",	"Check Out"];
+            
+            // Create a new workbook
+            var newWorkbook = XLSX.utils.book_new();
+            
+            // Add a new worksheet
+            var newWorksheet = XLSX.utils.aoa_to_sheet([headings]); // Add headings as the first row
+            XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, "Filtered Data");
+            
+            var filePath = "today.xls"; // Specify the path to your Excel file
+        
+            var req = new XMLHttpRequest();
+            req.open("GET", filePath, true);
+            req.responseType = "arraybuffer";
+            req.onload = function(e) {
+                var data = new Uint8Array(req.response);
+                var workbook = XLSX.read(data, {type: 'array'});
+            
+                // Assuming the data is in the first sheet
+                var sheetName = workbook.SheetNames[0];
+                var sheet = workbook.Sheets[sheetName];
+                
+                // Parse the sheet data excluding the first row (headings)
+                var jsonData = XLSX.utils.sheet_to_json(sheet, {header: 1, range: 1});
+                
+                // Extract the relevant columns (Emp No., Name, Date, Clock In, Clock Out, Department)
+                var filteredData = jsonData.map(row => {
+                    // Extracting the day from the date
+                    var date = new Date(row[5]);
+                    var days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                    var day = days[date.getDay()];
+                    
+                    return [
+                        row[0],     // Emp No.
+                        row[3],     // Name
+                        row[21],    // Date
+                        day,        // Day
+                        // row[5],     // Clock In
+                        row[5] + " " + row[9],  // Concatenate Clock Out and Department
+                        row[5] + " " + row[10],    // Department
+                    ];
+                });
+            
+                // Append the filtered data to the new worksheet
+                XLSX.utils.sheet_add_aoa(newWorksheet, filteredData, {origin: -1}); // Append below the headings
+                
+                // Convert the workbook to a binary string
+                var wbout = XLSX.write(newWorkbook, { bookType: 'xlsx', type: 'binary' });
+                
+                // Convert the binary string to a Blob
+                function s2ab(s) {
+                    var buf = new ArrayBuffer(s.length);
+                    var view = new Uint8Array(buf);
+                    for (var i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xFF;
+                    return buf;
+                }
+            
+                var blob = new Blob([s2ab(wbout)], { type: 'application/octet-stream' });
+                
+                // Create a download link
+                var downloadLink = document.createElement("a");
+                downloadLink.href = URL.createObjectURL(blob);
+                downloadLink.download = "filtered_data.xlsx";
+                
+                // Trigger the download
+                downloadLink.click();
+            };
+            req.send();
+        });
+    });
+</script>
+</body>
+</html>
